@@ -83,7 +83,7 @@ class TestMPIPrepMethods(unittest.TestCase):
         file = "test_manifest.csv"
         manifest_content = "A,B,C,ImageNumber,E,F\n1,2,3,1,4,5\n"
         self.create_collationfile(file, manifest_content)
-        collate_image_manifest("test", "content", file)
+        collate_image_manifest("test", "content", file, "content")
         self.assertTrue(os.path.exists(join("test", file)))
         with open(join("test", file), 'r') as content_file:
             self.assertEquals(content_file.read(), manifest_content)
@@ -91,11 +91,11 @@ class TestMPIPrepMethods(unittest.TestCase):
     def test_collate_image_manifest_into_existing(self):
         from mpi_prep import collate_image_manifest
         file = "test_manifest.csv"
-        manifest_content = "A,B,C,ImageNumber,E,F\n1,2,3,1,4,5\n"
-        combined_manifest = "A,B,C,ImageNumber,E,F\n1,2,3,1,4,5\n1,2,3,2,4,5\n"
+        manifest_content = "A,B,C,ImageNumber,Group_Index,F\n1,2,3,1,1,5\n"
+        combined_manifest = "A,B,C,ImageNumber,Group_Index,F\n1,2,3,1,1,5\n1,2,3,2,2,5\n"
         self.create_testfile(file, manifest_content)
         self.create_collationfile(file, manifest_content)
-        collate_image_manifest("test","content", file)
+        collate_image_manifest("test","content", file, "content")
         self.assertTrue(os.path.exists(join("test", file)))
         with open(join("test", file), 'r') as content_file:
             self.assertEquals(content_file.read(), combined_manifest)
@@ -107,7 +107,7 @@ class TestMPIPrepMethods(unittest.TestCase):
         combined_manifest = "A,B,C,ImageNumber,E,F\n1,2,3,1,4,5\n1,2,3,2,4,5\n1,2,3,3,4,5\n1,2,3,4,4,5\n"
         self.create_testfile(file, manifest_content)
         self.create_collationfile(file, manifest_content)
-        collate_image_manifest("test","content", file)
+        collate_image_manifest("test","content", file, "content")
         self.assertTrue(os.path.exists(join("test", file)))
         with open(join("test", file), 'r') as content_file:
             self.assertEquals(content_file.read(), combined_manifest)
@@ -160,8 +160,8 @@ class TestMPIPrepMethods(unittest.TestCase):
         imagefile = "test_image.jpg"
 
         manifestfile = "test_manifest.csv"
-        manifest_content = "A,B,C,ImageNumber,E,F\n1,2,3,1,4,5\n1,2,3,2,4,5\n"
-        combined_manifest = "A,B,C,ImageNumber,E,F\n1,2,3,1,4,5\n1,2,3,2,4,5\n1,2,3,3,4,5\n1,2,3,4,4,5\n"
+        manifest_content = "A,B,C,ImageNumber,Group_Index,F\n1,2,3,1,1,5\n1,2,3,2,2,5\n"
+        combined_manifest = "A,B,C,ImageNumber,Group_Index,F\n1,2,3,1,1,5\n1,2,3,2,2,5\n1,2,3,3,3,5\n1,2,3,4,4,5\n"
 
         datafile = "test_datafile.csv"
         datafile_content = "ImageNumber,A,B,C,D,E\n1,2,3,4,5,6\n1,2,3,5,5,6\n2,2,3,4,5,6\n2,2,3,5,5,6\n"
@@ -174,7 +174,7 @@ class TestMPIPrepMethods(unittest.TestCase):
         self.create_collationfile(manifestfile, manifest_content)
         self.create_collationfile(datafile, datafile_content)
 
-        collate("test", "content")
+        collate("test", "content", "content")
 
         #check the file results.
         self.assertTrue(os.path.exists(join("test", imagefile)))

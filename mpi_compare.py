@@ -16,6 +16,12 @@ def header_exceptions(header):
         return True
     if header.startswith("ImageSet"):
         return True
+    return False
+
+def row_exceptions(row):
+    if row[0] in ["ImageSet_Zip_Dictionary", "Run_Timestamp"]:
+        return True
+    return False
 
 def is_inconsistent(std,mpi):
     if std == mpi:
@@ -28,6 +34,8 @@ def comparerow(std_row, mpi_row, header, f):
     if len(std_row) != len(mpi_row):
         print("error, csv row " + std_row + " in file " + f +" has mismatching length \n")
         exit(1)
+    if row_exceptions(std_row):
+        return
     for idx in range(0, len(std_row)):
         if not header_exceptions(header[idx]):
             if is_inconsistent(std_row[idx], mpi_row[idx]):

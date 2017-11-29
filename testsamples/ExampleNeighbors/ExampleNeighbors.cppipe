@@ -39,7 +39,7 @@ NamesAndTypes:[module_num:3|svn_version:\'Unknown\'|variable_revision_number:8|s
     Relative pixel spacing in X:1.0
     Relative pixel spacing in Y:1.0
     Relative pixel spacing in Z:1.0
-    Select the rule criteria:and (file does contain "1.JPG")
+    Select the rule criteria:and (file does contain ".JPG")
     Name to assign these images:Original
     Name to assign these objects:Cell
     Select the image type:Color image

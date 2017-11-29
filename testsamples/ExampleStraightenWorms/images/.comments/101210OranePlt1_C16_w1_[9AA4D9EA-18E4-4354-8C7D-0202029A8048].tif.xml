@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<comment version="3.0">
+  <caption/>
+  <note>Experiment base name:101210OranePlt1
+Experiment set:FordJonah
+
+Exposure: 10 ms
+Binning: 2 x 2
+Region: 1392 x 1040, offset at (0, 0)
+Subtract: Off
+Shading: Off
+Sensor Mode: NORMAL
+Digitizer: 20 MHz
+Gain: Gain 1 (1x)
+Camera Shutter: Always Open
+Clear Count: 2
+Clear Mode: CLEAR PRE SEQUENCE
+Frames to Average: 1
+Trigger Mode: Normal
+Temperature: -19.45
+</note>
+  <place/>
+  <categories/>
+</comment>

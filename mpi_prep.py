@@ -42,7 +42,7 @@ def isimagefile(f):
         True
     """
     lf = f.lower()
-    return ('.jpg' in lf) or ('.png' in lf) or ('.tif' in lf) or ('.tiff' in lf)
+    return any(map(lambda ext: lf.endswith(ext), ['.jpg', '.png', '.tif','.tiff']))
 
 def first_line(f):
     """
@@ -66,6 +66,12 @@ def last_line(f):
         f.seek(-2, os.SEEK_CUR) # ...jump back the read byte plus one more.
     return f.readline().strip() # Read last line, and strip
 
+def isexperimentfile(f):
+    """
+        isexperimentfile(filename) returns true if we think this filename represents
+        an experiment file.
+    """
+    return f.endswith("Experiment.csv")
 
 def isimagemanifest(f):
     """
@@ -90,12 +96,16 @@ def isdatafile(f):
 def get_column(f, val):
     """
       get_column(filename, column) gets the column index for a column identifier.
+      returns -1 if the column doesn't exist.
 
       >>> get_column(StringIO.StringIO("A,B,C\\n1,2,3\\n"), "B")
       1
+      >>> get_column(StringIO.StringIO("A,B,C\\n1,2,3\\n"), "Q")
+      -1
     """
-    f.seek(0, os.SEEK_SET)                  #seek to the start of the file, first line should have file headings.
-    return csv.reader(f).next().index(val)  #use the builtin csv package to help handle strange cases.
+    f.seek(0, os.SEEK_SET)          #seek to the start of the file, first line should have file headings.
+    datalist = csv.reader(f).next() #use the builtin csv package to help handle strange cases.
+    return datalist.index(val) if val in datalist else -1
 
 def get_valueat(rowstr, idx):
     """
@@ -143,6 +153,11 @@ def substitute_directory(rowstr, directory):
 def collate_image_file(jobsdir, job_to_collate, image_file):
     os.rename(join(jobsdir, job_to_collate, image_file), join(jobsdir, image_file))
 
+
+def collate_experiment_file(jobsdir, job_to_collate, experiment_file):
+    if not os.path.exists(join(jobsdir, experiment_file)):
+        os.rename(join(jobsdir, job_to_collate, experiment_file), join(jobsdir, experiment_file))
+
 def transfer_image_manifest(src_path, dst_path, images_dir):
     with open(src_path, "r") as src_file:
         with open(dst_path, "w") as dst_file:
@@ -159,20 +174,28 @@ def collate_image_manifest(jobsdir, job_to_collate, image_file, images_dir):
             with open(join(jobsdir, job_to_collate, image_file), "r") as srcfile:
                 #handle imagenumber variable.
                 imagenumber_col = get_column(srcfile, "ImageNumber")
-                imagenumber_index_delta = int(get_valueat(last_line(dstfile), imagenumber_col))
+                if (imagenumber_col > 0):
+                    imagenumber_index_delta = int(get_valueat(last_line(dstfile), imagenumber_col))
                 srcfile.seek(0,os.SEEK_SET)
 
                 groupindex_col = get_column(srcfile, "Group_Index")
-                groupindex_delta = int(get_valueat(last_line(dstfile), groupindex_col))
+                if (groupindex_col > 0):
+                    groupindex_delta = int(get_valueat(last_line(dstfile), groupindex_col))
                 srcfile.seek(0,os.SEEK_SET)
                 #note that srcfile is already at line 2 because of the side
                 #effect of target_col
                 for line in srcfile.readlines()[1:]:
-                    image_index_val = int(get_valueat(line, imagenumber_col)) + imagenumber_index_delta
-                    updated_image_index_row = substitute_column(line, imagenumber_col, image_index_val)
+                    if (imagenumber_col > 0):
+                        image_index_val = int(get_valueat(line, imagenumber_col)) + imagenumber_index_delta
+                        updated_image_index_row = substitute_column(line, imagenumber_col, image_index_val)
+                    else:
+                        updated_image_index_row = line
 
-                    groupindex_val = int(get_valueat(line, groupindex_col)) + groupindex_delta
-                    updated_group_index_row = substitute_column(updated_image_index_row, groupindex_col, groupindex_val)
+                    if (groupindex_col > 0):
+                        groupindex_val = int(get_valueat(line, groupindex_col)) + groupindex_delta
+                        updated_group_index_row = substitute_column(updated_image_index_row, groupindex_col, groupindex_val)
+                    else:
+                        updated_group_index_row = updated_image_index_row
 
                     substituted_file_row = substitute_directory(updated_group_index_row, images_dir)
                     dstfile.write(substituted_file_row)
@@ -182,7 +205,6 @@ def collate_image_manifest(jobsdir, job_to_collate, image_file, images_dir):
         transfer_image_manifest(join(jobsdir,job_to_collate, image_file), join(jobsdir, image_file), images_dir)
 
 def collate_data_file(jobsdir, job_to_collate, data_file):
-    #check if the parent data file exists in the jobsdir directory.
     if os.path.exists(join(jobsdir, data_file)):
         #do a simple append.  TODO: consider merging this with above file.
         with open(join(jobsdir, data_file), "r+") as dstfile:
@@ -203,10 +225,16 @@ def collate(jobsdir, job_to_collate, images_dir):
     for f in listdir(collatedir):
         fullpath = join(collatedir, f)
         if isimagefile(fullpath):
+            #sys.stderr.write("image file: " + f)
             collate_image_file(jobsdir, job_to_collate, f)
+        elif isexperimentfile(fullpath):
+            #sys.stderr.write("experiment file: " + f)
+            collate_experiment_file(jobsdir, job_to_collate, f)
         elif isimagemanifest(fullpath):
+            #sys.stderr.write("image manifest file: " + f)
             collate_image_manifest(jobsdir, job_to_collate, f, images_dir)
         elif isdatafile(fullpath):
+            #sys.stderr.write("data file: " + f)
             collate_data_file(jobsdir, job_to_collate, f)
     shutil.rmtree(collatedir)
 
@@ -300,6 +328,7 @@ if __name__ == "__main__":
     file_lock = join(scratch_dir, "file_lock")
     with FileLock(file_lock):
         job_list = fileclasses(listdir(images_dir), file_suffix)
+
         next_job = ""
         if (completed_job == ""):
             create_status_files(scratch_dir)

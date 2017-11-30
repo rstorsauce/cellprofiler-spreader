@@ -4,6 +4,7 @@ import csv
 import re
 import hashlib
 from os.path import join
+from os.path import isdir
 from os import listdir
 
 std_dir = sys.argv[1]
@@ -80,6 +81,8 @@ for f in listdir(std_dir):
     if f.endswith(".csv"):
         comparecsv(join(std_dir, f), join(mpi_dir, f), f)
     else:
+        if isdir(join(std_dir, f)):
+            continue
         expected_md5 = ""
         #check that the checksums of the two files are the same.
         with open(join(std_dir, f)) as file_to_check:

@@ -6,6 +6,7 @@ import shutil
 import StringIO
 import string
 import sys
+import re
 from os import listdir
 from os.path import isfile, join
 from filelock import FileLock
@@ -14,24 +15,52 @@ from shutil import copyfile
 #input_dir    = os.environ['INPUT_DIR']
 #finished_job = os.environ['job']
 
-def fileclasses(f_list, suffix):
+def trimby(filename, regex):
+    matchstr = re.search(regex, filename).group(0)
+    l = len(matchstr)
+    return filename[:-l]
+
+def fileclasses(f_list, matchdesc):
     """
-        fileclasses(file_list, suffuix) returns an array of all file name classes
+        fileclasses(file_list, suffix) returns an array of all file name classes
         which match the given suffix.
+
+        fileclasses(file_list, regexstring) returns an array of all file name classes
+        which match the given regexstring
 
         >>> fileclasses(["test_image.jpg"], ".jpg")
         ['test_image']
+
+        >>> fileclasses(["abc_aw123.jpg"], "r/aw(.*).jpg/")
+        ['abc_']
     """
-    l = len(suffix)
-    arr = [filename[0:-l] for filename in f_list if filename.endswith(suffix)]
-    arr.sort()
-    return arr
+    if matchdesc.startswith("r/"):
+        if not matchdesc.endswith("/"):
+            sys.error.write("error: bad regex suffix definition\n")
+            exit(1)
+        regex = re.compile(matchdesc[2:-1])
+        arr = [trimby(filename, regex) for filename in f_list if re.search(regex, filename)]
+        arr.sort()
+        return arr
+    else:
+        l = len(matchdesc)
+        arr = [filename[0:-l] for filename in f_list if filename.endswith(matchdesc)]
+        arr.sort()
+        return arr
 
 def assembleclass(images_path, scratch_path, classname):
-    os.makedirs(join(scratch_path, classname))
-    for file in listdir(images_path):
-        if os.path.isfile(join(images_path, file)) and file.startswith(classname):
-            os.symlink(join(os.path.abspath(images_path),file), join(scratch_path, classname, file))
+    if os.path.isdir(join(images_path, classname)):
+        os.symlink(join(os.path.abspath(images_path), classname), join(scratch_path, classname))
+    else:
+        os.makedirs(join(scratch_path, classname))
+        for file in listdir(images_path):
+            #xml files get copied "no matter what"
+            if file.endswith(".xml"):
+                os.symlink(join(os.path.abspath(images_path),file), join(scratch_path, classname, file))
+            #image files get copied if their path matches the classname.
+            if isimagefile(file):
+                if os.path.isfile(join(images_path, file)) and file.startswith(classname):
+                    os.symlink(join(os.path.abspath(images_path),file), join(scratch_path, classname, file))
 
 def isimagefile(f):
     """
@@ -81,7 +110,7 @@ def isimagemanifest(f):
     if not('.csv' in f):
         return False
     with open(f, "r") as file:
-        return get_valueat(first_line(file),0) != "ImageNumber"
+        return not(get_valueat(first_line(file),0) in ["ImageNumber", "Image"])
 
 def isdatafile(f):
     """
@@ -91,7 +120,7 @@ def isdatafile(f):
     if not('.csv' in f):
         return False
     with open(f, "r") as file:
-        return get_valueat(first_line(file),0) == "ImageNumber"
+        return get_valueat(first_line(file),0) in ["ImageNumber", "Image"]
 
 def get_column(f, val):
     """
@@ -204,6 +233,10 @@ def collate_image_manifest(jobsdir, job_to_collate, image_file, images_dir):
         #copy the file over to seed the jobsdir.)
         transfer_image_manifest(join(jobsdir,job_to_collate, image_file), join(jobsdir, image_file), images_dir)
 
+def is_number(s):
+    """ Returns True is string is a number. """
+    return s.replace('.','',1).isdigit()
+
 def collate_data_file(jobsdir, job_to_collate, data_file):
     if os.path.exists(join(jobsdir, data_file)):
         #do a simple append.  TODO: consider merging this with above file.
@@ -212,6 +245,8 @@ def collate_data_file(jobsdir, job_to_collate, data_file):
                 index_delta = int(get_valueat(last_line(dstfile), 0))
                 srcfile.seek(0,os.SEEK_SET)
                 for line in srcfile.readlines()[1:]:
+                    if not is_number(get_valueat(line, 0)):
+                        continue
                     new_val = int(get_valueat(line, 0)) + index_delta
                     finalized_row = substitute_column(line, 0, new_val)
                     dstfile.write(finalized_row)
@@ -222,21 +257,26 @@ def collate_data_file(jobsdir, job_to_collate, data_file):
 
 def collate(jobsdir, job_to_collate, images_dir):
     collatedir = join(jobsdir, job_to_collate)
-    for f in listdir(collatedir):
-        fullpath = join(collatedir, f)
-        if isimagefile(fullpath):
-            #sys.stderr.write("image file: " + f)
-            collate_image_file(jobsdir, job_to_collate, f)
-        elif isexperimentfile(fullpath):
-            #sys.stderr.write("experiment file: " + f)
-            collate_experiment_file(jobsdir, job_to_collate, f)
-        elif isimagemanifest(fullpath):
-            #sys.stderr.write("image manifest file: " + f)
-            collate_image_manifest(jobsdir, job_to_collate, f, images_dir)
-        elif isdatafile(fullpath):
-            #sys.stderr.write("data file: " + f)
-            collate_data_file(jobsdir, job_to_collate, f)
-    shutil.rmtree(collatedir)
+    if os.path.isdir(join(collatedir, job_to_collate)):
+        os.rename(collatedir, join(jobsdir, "_tmp"))
+        os.rename(join(jobsdir, "_tmp", job_to_collate), join(jobsdir, job_to_collate))
+        shutil.rmtree(join(jobsdir, "_tmp"))
+    else:
+        for f in listdir(collatedir):
+            fullpath = join(collatedir, f)
+            if isimagefile(fullpath):
+                #sys.stderr.write("image file: " + f)
+                collate_image_file(jobsdir, job_to_collate, f)
+            elif isexperimentfile(fullpath):
+                #sys.stderr.write("experiment file: " + f)
+                collate_experiment_file(jobsdir, job_to_collate, f)
+            elif isimagemanifest(fullpath):
+                #sys.stderr.write("image manifest file: " + f)
+                collate_image_manifest(jobsdir, job_to_collate, f, images_dir)
+            elif isdatafile(fullpath):
+                #sys.stderr.write("data file: " + f)
+                collate_data_file(jobsdir, job_to_collate, f)
+        shutil.rmtree(collatedir)
 
 def find_next_job(job_list, last_job):
     if last_job == "":
@@ -254,7 +294,10 @@ def handle_cache(job_list, output_dir, unstaged_jobs, completed_job, images_dir)
     while completed_job in unstaged_jobs:
         collate(output_dir, next_job, images_dir)
         #clear out the next job directory from the scratch directory
-        shutil.rmtree(join(scratch_dir, next_job))
+        if os.path.islink(join(scratch_dir, next_job)):
+            os.remove(join(scratch_dir, next_job))
+        else:
+            shutil.rmtree(join(scratch_dir, next_job))
         #remove it from the list(so we can write it back to the file.)
         unstaged_jobs.remove(next_job)
 
@@ -327,7 +370,13 @@ if __name__ == "__main__":
     #next put a semaphore around the process
     file_lock = join(scratch_dir, "file_lock")
     with FileLock(file_lock):
-        job_list = fileclasses(listdir(images_dir), file_suffix)
+        images_contents = listdir(images_dir)
+
+        if all([os.path.isdir(join(images_dir, file)) for file in images_contents]):
+            images_contents.sort()
+            job_list = images_contents
+        else:
+            job_list = fileclasses(images_contents, file_suffix)
 
         next_job = ""
         if (completed_job == ""):

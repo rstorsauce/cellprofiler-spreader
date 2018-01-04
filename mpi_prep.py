@@ -71,7 +71,7 @@ def isimagefile(f):
         True
     """
     lf = f.lower()
-    return any(map(lambda ext: lf.endswith(ext), ['.jpg', '.png', '.tif','.tiff']))
+    return any(map(lambda ext: lf.endswith(ext), ['.jpg','.jpeg','.png', '.tif','.tiff']))
 
 def first_line(f):
     """
@@ -377,6 +377,10 @@ if __name__ == "__main__":
             job_list = images_contents
         else:
             job_list = fileclasses(images_contents, file_suffix)
+
+        if job_list == []:
+            os.stderr.write("no matching files found!")
+            exit(-1)
 
         next_job = ""
         if (completed_job == ""):

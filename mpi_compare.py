@@ -17,6 +17,10 @@ def header_exceptions(header):
         return True
     if header.startswith("ImageSet"):
         return True
+    if header.startswith("PathName"):
+        return True
+    if header.startswith("URL"):
+        return True
     return False
 
 def row_exceptions(row):
